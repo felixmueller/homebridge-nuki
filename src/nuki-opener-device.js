@@ -19,6 +19,9 @@ function NukiOpenerDevice(platform, apiConfig, config) {
     let newDeviceAccessories = [];
     let deviceAccessories = [];
 
+    // Global request blocker to prevent multiple requests at once (bug in iOS 17.4)
+    let requestBlocked = null;
+
     // Gets the lock accessory
     let lockAccessory = unusedDeviceAccessories.find(function(a) { return a.context.kind === 'LockAccessory'; });
     if (lockAccessory) {
@@ -137,13 +140,18 @@ function NukiOpenerDevice(platform, apiConfig, config) {
         }
 
         // Executes the action
-        platform.log(config.nukiId + ' - Unlock');
-        platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=2&action=3', function (actionSuccess, actionBody) {
-            if (actionSuccess && actionBody.success) {
-                device.lockService.updateCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
-                device.lockService.updateCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.UNSECURED);
-            }
-        });
+        if (!requestBlocked) {
+            platform.log(config.nukiId + ' - Unlock');
+            platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=2&action=3', function (actionSuccess, actionBody) {
+                if (actionSuccess && actionBody.success) {
+                    device.lockService.updateCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
+                    device.lockService.updateCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.UNSECURED);
+                }
+            });
+            requestBlocked = setTimeout(function () {
+                requestBlocked = null;
+            }, 2000);
+        }
         callback(null);
     });
 
@@ -152,8 +160,13 @@ function NukiOpenerDevice(platform, apiConfig, config) {
         ringToOpenSwitchService.getCharacteristic(Characteristic.On).on('set', function (value, callback) {
 
             // Executes the action
-            platform.log(config.nukiId + ' - Set RTO to ' + value);
-            platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=2&action=' + (value ? '1' : '2'), function () { });
+            if (!requestBlocked) {
+                platform.log(config.nukiId + ' - Set RTO to ' + value);
+                platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=2&action=' + (value ? '1' : '2'), function () { });
+                requestBlocked = setTimeout(function () {
+                    requestBlocked = null;
+                }, 2000);
+            }
             callback(null);
         });
     }
@@ -163,8 +176,13 @@ function NukiOpenerDevice(platform, apiConfig, config) {
         continuousModeSwitchService.getCharacteristic(Characteristic.On).on('set', function (value, callback) {
 
             // Executes the action
-            platform.log(config.nukiId + ' - Set Continuous Mode to ' + value);
-            platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=2&action=' + (value ? '4' : '5'), function () { });
+            if (!requestBlocked) {
+                platform.log(config.nukiId + ' - Set Continuous Mode to ' + value);
+                platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=2&action=' + (value ? '4' : '5'), function () { });
+                requestBlocked = setTimeout(function () {
+                    requestBlocked = null;
+                }, 2000);
+            }
             callback(null);
         });
     }

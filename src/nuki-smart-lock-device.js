@@ -20,6 +20,9 @@ function NukiSmartLockDevice(platform, apiConfig, config) {
     let newDeviceAccessories = [];
     let deviceAccessories = [];
 
+    // Global request blocker to prevent multiple requests at once (bug in iOS 17.4)
+    let requestBlocked = null;
+
     // Gets the lock accessory
     let lockAccessory = unusedDeviceAccessories.find(function(a) { return a.context.kind === 'LockAccessory'; });
     if (lockAccessory) {
@@ -143,24 +146,34 @@ function NukiSmartLockDevice(platform, apiConfig, config) {
                     }
 
                     // Unlatches the door
-                    platform.log(config.nukiId + ' - Unlatch');
-                    platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=0&action=3', function (actionSuccess, actionBody) {
-                        if (actionSuccess && actionBody.success) {
-                            device.lockService.updateCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
-                            device.lockService.updateCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.UNSECURED);
-                        }
-                    });
+                    if (!requestBlocked) {
+                        platform.log(config.nukiId + ' - Unlatch');
+                        platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=0&action=3', function (actionSuccess, actionBody) {
+                            if (actionSuccess && actionBody.success) {
+                                device.lockService.updateCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
+                                device.lockService.updateCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.UNSECURED);
+                            }
+                        });
+                        requestBlocked = setTimeout(function () {
+                            requestBlocked = null;
+                        }, 2000);
+                    }
 
                 } else {
 
                     // Unlocks the door
-                    platform.log(config.nukiId + ' - Unlock');
-                    platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=0&action=1', function (actionSuccess, actionBody) {
-                        if (actionSuccess && actionBody.success) {
-                            device.lockService.updateCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
-                            device.lockService.updateCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.UNSECURED);
-                        }
-                    });
+                    if (!requestBlocked) {
+                        platform.log(config.nukiId + ' - Unlock');
+                        platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=0&action=1', function (actionSuccess, actionBody) {
+                            if (actionSuccess && actionBody.success) {
+                                device.lockService.updateCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
+                                device.lockService.updateCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.UNSECURED);
+                            }
+                        });
+                        requestBlocked = setTimeout(function () {
+                            requestBlocked = null;
+                        }, 2000);
+                    }
                 }
             }
             if (lockService.getCharacteristic(Characteristic.LockCurrentState).value === Characteristic.LockCurrentState.UNSECURED) {
@@ -172,14 +185,18 @@ function NukiSmartLockDevice(platform, apiConfig, config) {
                     }
 
                     // Unlatches the door
-                    platform.log(config.nukiId + ' - Unlatch');
-                    platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=0&action=3', function (actionSuccess, actionBody) {
-                        if (actionSuccess && actionBody.success) {
-                            device.lockService.updateCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
-                            device.lockService.updateCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.UNSECURED);
-                        }
-                    });
-
+                    if (!requestBlocked) {
+                        platform.log(config.nukiId + ' - Unlatch');
+                        platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=0&action=3', function (actionSuccess, actionBody) {
+                            if (actionSuccess && actionBody.success) {
+                                device.lockService.updateCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
+                                device.lockService.updateCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.UNSECURED);
+                            }
+                        });
+                        requestBlocked = setTimeout(function () {
+                            requestBlocked = null;
+                        }, 2000);
+                    }
                 }
             }
         }
@@ -188,22 +205,32 @@ function NukiSmartLockDevice(platform, apiConfig, config) {
         if (value === Characteristic.LockTargetState.SECURED) {
             if (lockService.getCharacteristic(Characteristic.LockCurrentState).value === Characteristic.LockCurrentState.SECURED) {
                 if (config.lockFromLockedToLocked) {
-                    platform.log(config.nukiId + ' - Lock again (already locked)');
+                    if (!requestBlocked) {
+                        platform.log(config.nukiId + ' - Lock again (already locked)');
+                        platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=0&action=2', function (actionSuccess, actionBody) {
+                            if (actionSuccess && actionBody.success) {
+                                device.lockService.updateCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.SECURED);
+                                device.lockService.updateCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.SECURED);
+                            }
+                        });
+                        requestBlocked = setTimeout(function () {
+                            requestBlocked = null;
+                        }, 2000);
+                    }
+                }
+            } else {
+                if (!requestBlocked) {
+                    platform.log(config.nukiId + ' - Lock');
                     platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=0&action=2', function (actionSuccess, actionBody) {
                         if (actionSuccess && actionBody.success) {
                             device.lockService.updateCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.SECURED);
                             device.lockService.updateCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.SECURED);
                         }
                     });
+                    requestBlocked = setTimeout(function () {
+                        requestBlocked = null;
+                    }, 2000);
                 }
-            } else {
-                platform.log(config.nukiId + ' - Lock');
-                platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=0&action=2', function (actionSuccess, actionBody) {
-                    if (actionSuccess && actionBody.success) {
-                        device.lockService.updateCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.SECURED);
-                        device.lockService.updateCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.SECURED);
-                    }
-                });
             }
         }
 
@@ -233,13 +260,18 @@ function NukiSmartLockDevice(platform, apiConfig, config) {
             lockService.updateCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.UNSECURED);
 
             // Unlatches the lock
-            platform.log(config.nukiId + ' - Unlatch');
-            platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=0&action=3', function (actionSuccess, actionBody) {
-                if (actionSuccess && actionBody.success) {
-                    unlatchService.updateCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
-                    unlatchService.updateCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.UNSECURED);
-                }
-            });
+            if (!requestBlocked) {
+                platform.log(config.nukiId + ' - Unlatch');
+                platform.client.send('/lockAction?nukiId=' + config.nukiId + '&deviceType=0&action=3', function (actionSuccess, actionBody) {
+                    if (actionSuccess && actionBody.success) {
+                        unlatchService.updateCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
+                        unlatchService.updateCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.UNSECURED);
+                    }
+                });
+                requestBlocked = setTimeout(function () {
+                    requestBlocked = null;
+                }, 2000);
+            }
             callback(null);
         });
     }
